@@ -1,7 +1,8 @@
 import streamlit as st
 import json
 import pandas as pd
-from logic import process_analysis
+import streamlit.components.v1 as components
+from logic import process_analysis, generate_html_report
 
 st.set_page_config(page_title="Bank Statement Analyzer", layout="wide")
 
@@ -73,6 +74,7 @@ if uploaded_files:
     if st.button("🚀 Run Analysis", type="primary"):
         with st.spinner("Crunching numbers..."):
             try:
+                # 1. Run Logic
                 results = process_analysis(
                     company_name=company_name,
                     company_keywords=[k.strip() for k in company_aliases],
@@ -81,37 +83,30 @@ if uploaded_files:
                     uploaded_data=uploaded_data_content
                 )
                 
-                # --- DISPLAY RESULTS ---
+                # 2. Generate HTML Report
+                html_report = generate_html_report(results, template_path="template.html")
+                
+                # 3. Display Results
                 st.divider()
                 st.subheader("📊 Analysis Report")
                 
-                # Metrics Row
+                # Metrics
                 m1, m2, m3 = st.columns(3)
-                m1.metric("Gross Credits", f"RM {results['consolidated']['gross']['total_credits']:,.2f}")
-                m2.metric("Net Business Turnover", f"RM {results['consolidated']['business_turnover']['net_credits']:,.2f}")
-                m3.metric("Integrity Score", f"{results['integrity_score']['score']} (Vol: {results['integrity_score']['level']})")
+                m1.metric("Total Credits", f"RM {results['report_info']['total_credits']:,.2f}")
+                m2.metric("Accounts Analyzed", results['report_info']['total_accounts'])
+                m3.metric("Integrity Score", f"{results['integrity_score']['score']}%")
                 
-                # Exclusions Chart
-                st.subheader("Exclusions Breakdown")
-                excl = results['consolidated']['exclusions']['breakdown']
-                st.bar_chart(excl)
-                
-                # Related Party Table
-                st.subheader("Related Party Transactions (Excluded)")
-                rp_txns = results['related_party_transactions']['details']
-                if rp_txns:
-                    st.dataframe(pd.DataFrame(rp_txns))
-                else:
-                    st.write("No related party transactions found.")
-                
-                # Download JSON
-                json_str = json.dumps(results, indent=2)
+                # Download Button
                 st.download_button(
-                    label="Download Full JSON Report",
-                    data=json_str,
-                    file_name="analysis_report.json",
-                    mime="application/json"
+                    label="📄 Download Interactive HTML Dashboard",
+                    data=html_report,
+                    file_name="bank_analysis_dashboard.html",
+                    mime="text/html"
                 )
+                
+                # Preview
+                st.write("### Report Preview")
+                components.html(html_report, height=800, scrolling=True)
                 
             except Exception as e:
                 st.error(f"Analysis failed: {str(e)}")
