@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Analysis Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        :root, [data-theme="dark"] {
+            --bg: #0a0e17; --bg-alt: #0f1520; --card-bg: #141b2b; --card-hover: #1a2235;
+            --border-subtle: #1e2a42; --border-accent: #2d3f5f;
+            --accent: #22c55e; --accent-dim: rgba(34, 197, 94, 0.15);
+            --danger: #ef4444; --danger-dim: rgba(239, 68, 68, 0.15);
+            --warn: #f59e0b; --warn-dim: rgba(245, 158, 11, 0.15);
+            --info: #3b82f6; --info-dim: rgba(59, 130, 246, 0.15);
+            --text-main: #e8eaed; --text-soft: #9ca3af;
+        }
+        [data-theme="light"] {
+            --bg: #f8fafc; --bg-alt: #ffffff; --card-bg: #ffffff; --card-hover: #f1f5f9;
+            --border-subtle: #e2e8f0; --border-accent: #cbd5e1;
+            --accent: #16a34a; --accent-dim: rgba(22, 163, 74, 0.1);
+            --danger: #dc2626; --danger-dim: rgba(220, 38, 38, 0.1);
+            --warn: #d97706; --warn-dim: rgba(217, 119, 6, 0.1);
+            --info: #2563eb; --info-dim: rgba(37, 99, 235, 0.1);
+            --text-main: #1e293b; --text-soft: #475569;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); margin: 0; padding: 2rem; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { background: var(--card-bg); padding: 2rem; border-radius: 16px; border: 1px solid var(--border-subtle); margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .stat-box { text-align: center; margin-left: 2rem; } 
+        .stat-val { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+        .nav-tabs { display: flex; gap: 1rem; margin-bottom: 2rem; overflow-x: auto; }
+        .nav-tab { background: var(--card-bg); border: 1px solid var(--border-subtle); padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; color: var(--text-soft); font-weight: 500; }
+        .nav-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .tab-content { display: none; } .tab-content.active { display: block; }
+        .card { background: var(--card-bg); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        .data-table th, .data-table td { padding: 0.75rem; border-bottom: 1px solid var(--border-subtle); text-align: left; }
+        .data-table th { color: var(--text-soft); font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }
+        .text-right { text-align: right; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .credit { color: var(--accent); } .debit { color: var(--danger); }
+        .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .badge-PASS, .badge-LOW { background: var(--accent-dim); color: var(--accent); }
+        .badge-FAIL, .badge-HIGH { background: var(--danger-dim); color: var(--danger); }
+        .badge-MODERATE { background: var(--warn-dim); color: var(--warn); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1 id="companyName" style="margin:0; font-size:1.8rem">Loading...</h1>
+                <p id="reportPeriod" style="color:var(--text-soft); margin-top:0.5rem">...</p>
+            </div>
+            <div style="display:flex;">
+                <div class="stat-box"><div class="stat-val" id="totalAcc">0</div><div style="font-size:0.8rem; color:var(--text-soft)">Accounts</div></div>
+                <div class="stat-box"><div class="stat-val" id="totalTxn">0</div><div style="font-size:0.8rem; color:var(--text-soft)">Transactions</div></div>
+                <div class="stat-box"><div class="stat-val" id="totalCr">0</div><div style="font-size:0.8rem; color:var(--text-soft)">Total Credits</div></div>
+            </div>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="switchTab('overview', this)">Overview</button>
+            <button class="nav-tab" onclick="switchTab('accounts', this)">Accounts</button>
+            <button class="nav-tab" onclick="switchTab('categories', this)">Categories</button>
+            <button class="nav-tab" onclick="switchTab('counterparties', this)">Counterparties</button>
+            <button class="nav-tab" onclick="switchTab('integrity', this)">Integrity</button>
+        </div>
+
+        <div id="overview" class="tab-content active">
+            <div class="card">
+                <h3>Key Metrics</h3>
+                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:1rem; margin-top:1rem;">
+                    <div style="text-align:center; padding:1.5rem; border:1px solid var(--border-subtle); border-radius:8px">
+                        <div class="stat-val" id="scoreVal">0%</div>
+                        <div>Integrity Score</div>
+                    </div>
+                    <div style="text-align:center; padding:1.5rem; border:1px solid var(--border-subtle); border-radius:8px">
+                        <div class="stat-val" id="volVal" style="color:var(--warn)">-</div>
+                        <div>Volatility</div>
+                    </div>
+                    <div style="text-align:center; padding:1.5rem; border:1px solid var(--border-subtle); border-radius:8px">
+                        <div class="stat-val" id="flagsVal" style="color:var(--danger)">0</div>
+                        <div>Risk Flags</div>
+                    </div>
+                </div>
+            </div>
+            <div id="accountsGrid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:1rem;">
+                </div>
+        </div>
+
+        <div id="accounts" class="tab-content">
+            <div id="monthlyTables"></div>
+        </div>
+
+        <div id="categories" class="tab-content">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem;">
+                <div class="card">
+                    <h3>Credits</h3>
+                    <div id="creditsChart" style="height:300px"></div>
+                    <div id="creditsTable"></div>
+                </div>
+                <div class="card">
+                    <h3>Debits</h3>
+                    <div id="debitsChart" style="height:300px"></div>
+                    <div id="debitsTable"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="counterparties" class="tab-content">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem;">
+                <div class="card">
+                    <h3>Top Payers (Income)</h3>
+                    <table class="data-table">
+                        <thead><tr><th>Name</th><th class="text-right">Amount</th><th class="text-right">Count</th></tr></thead>
+                        <tbody id="topPayersBody"></tbody>
+                    </table>
+                </div>
+                <div class="card">
+                    <h3>Top Payees (Expenses)</h3>
+                    <table class="data-table">
+                        <thead><tr><th>Name</th><th class="text-right">Amount</th><th class="text-right">Count</th></tr></thead>
+                        <tbody id="topPayeesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="integrity" class="tab-content">
+            <div class="card">
+                <h3>Integrity Checks</h3>
+                <table class="data-table">
+                    <thead><tr><th>Check</th><th>Status</th><th>Details</th></tr></thead>
+                    <tbody id="integrityBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script id="analysis-data" type="application/json">
+        {{DATA_PAYLOAD}}
+    </script>
+
+    <script>
+        const fmtMoney = (n) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(n);
+        const fmtNum = (n) => new Intl.NumberFormat('en-MY').format(n);
+
+        function render() {
+            let data = {};
+            try {
+                data = JSON.parse(document.getElementById('analysis-data').textContent);
+            } catch (e) { console.error("Data Load Error"); return; }
+
+            // Header
+            document.getElementById('companyName').textContent = data.report_info.company_name;
+            document.getElementById('reportPeriod').textContent = data.report_info.period;
+            document.getElementById('totalAcc').textContent = data.report_info.total_accounts;
+            document.getElementById('totalTxn').textContent = fmtNum(data.report_info.total_transactions);
+            document.getElementById('totalCr').textContent = fmtMoney(data.report_info.total_credits);
+
+            // Scores
+            document.getElementById('scoreVal').textContent = data.integrity_score.score + '%';
+            document.getElementById('volVal').textContent = data.volatility.overall_level;
+            document.getElementById('flagsVal').textContent = data.flags.round_figures.length;
+
+            // Accounts Overview
+            const accGrid = document.getElementById('accountsGrid');
+            data.accounts.forEach(acc => {
+                const div = document.createElement('div');
+                div.className = 'card';
+                div.style.borderLeft = '4px solid var(--accent)';
+                div.innerHTML = `
+                    <h4>${acc.bank_name}</h4>
+                    <p class="mono" style="color:var(--text-soft)">${acc.account_number}</p>
+                    <div style="display:flex; justify-content:space-between; margin-top:1rem">
+                        <div><small>Balance</small><br><strong>${fmtMoney(acc.closing_balance)}</strong></div>
+                        <div class="text-right"><small>Volume</small><br><strong>${fmtMoney(acc.total_credits + acc.total_debits)}</strong></div>
+                    </div>
+                `;
+                accGrid.appendChild(div);
+            });
+
+            // Monthly Tables
+            const mContainer = document.getElementById('monthlyTables');
+            data.accounts.forEach(acc => {
+                let rows = acc.monthly_summary.map(m => `
+                    <tr>
+                        <td>${m.month_name}</td>
+                        <td class="text-right mono">${fmtMoney(m.opening)}</td>
+                        <td class="text-right mono credit">${fmtMoney(m.credits)}</td>
+                        <td class="text-right mono debit">${fmtMoney(m.debits)}</td>
+                        <td class="text-right mono">${fmtMoney(m.closing)}</td>
+                        <td><span class="badge badge-${m.volatility_level}">${m.volatility_level}</span></td>
+                    </tr>
+                `).join('');
+                
+                mContainer.innerHTML += `
+                    <div class="card">
+                        <h3>${acc.bank_name} (${acc.account_number})</h3>
+                        <div style="overflow-x:auto">
+                            <table class="data-table">
+                                <thead><tr><th>Month</th><th class="text-right">Opening</th><th class="text-right">Credits</th><th class="text-right">Debits</th><th class="text-right">Closing</th><th>Vol</th></tr></thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Categories
+            renderCategorySection('credits', data.categories.credits, 'creditsChart', 'creditsTable');
+            renderCategorySection('debits', data.categories.debits, 'debitsChart', 'debitsTable');
+
+            // Counterparties
+            const payersBody = document.getElementById('topPayersBody');
+            data.counterparties.payers.forEach(p => {
+                payersBody.innerHTML += `<tr><td>${p.name}</td><td class="text-right mono credit">${fmtMoney(p.amount)}</td><td class="text-right">${p.count}</td></tr>`;
+            });
+            const payeesBody = document.getElementById('topPayeesBody');
+            data.counterparties.payees.forEach(p => {
+                payeesBody.innerHTML += `<tr><td>${p.name}</td><td class="text-right mono debit">${fmtMoney(p.amount)}</td><td class="text-right">${p.count}</td></tr>`;
+            });
+
+            // Integrity
+            const intBody = document.getElementById('integrityBody');
+            data.integrity_score.checks.forEach(c => {
+                intBody.innerHTML += `
+                    <tr>
+                        <td>${c.name}</td>
+                        <td><span class="badge badge-${c.status}">${c.status}</span></td>
+                        <td>${c.details}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderCategorySection(type, cats, chartId, tableId) {
+            // Chart
+            const values = cats.map(c => c.amount);
+            const labels = cats.map(c => c.category);
+            Plotly.newPlot(chartId, [{
+                values: values,
+                labels: labels,
+                type: 'pie',
+                hole: 0.4,
+                marker: { colors: type === 'credits' ? ['#22c55e', '#86efac', '#bbf7d0'] : ['#ef4444', '#fca5a5', '#fecaca'] }
+            }], { height: 300, margin: { t: 0, b: 0, l: 0, r: 0 } });
+
+            // Table
+            const container = document.getElementById(tableId);
+            let html = `<table class="data-table"><thead><tr><th>Category</th><th class="text-right">Amount</th><th class="text-right">%</th></tr></thead><tbody>`;
+            cats.forEach((c, idx) => {
+                html += `
+                    <tr onclick="document.getElementById('${type}-top5-${idx}').style.display = document.getElementById('${type}-top5-${idx}').style.display === 'none' ? 'table-row' : 'none'" style="cursor:pointer">
+                        <td>▶ ${c.category}</td>
+                        <td class="text-right mono">${fmtMoney(c.amount)}</td>
+                        <td class="text-right">${c.percentage.toFixed(1)}%</td>
+                    </tr>
+                    <tr id="${type}-top5-${idx}" style="display:none; background:var(--bg)">
+                        <td colspan="3">
+                            <table class="data-table" style="font-size:0.8rem">
+                                ${c.top_5_transactions.map(t => `<tr><td>${t.date}</td><td>${t.description.substring(0,40)}</td><td class="text-right">${fmtMoney(t.amount)}</td></tr>`).join('')}
+                            </table>
+                        </td>
+                    </tr>
+                `;
+            });
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        function switchTab(id, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        render();
+    </script>
+</body>
+</html>
